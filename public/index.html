@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improving Text Analytics Data Quality with Advanced NLP</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Improving Text Analytics Data Quality with Advanced NLP</h1>
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <h2>Upload Dataset</h2>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="file" name="file" class="form-control" accept=".csv" required>
+                    <button type="submit" class="btn btn-primary mt-2">Upload</button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <h2>Data Visualization</h2>
+                <canvas id="dataChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+        <div class="row mt-4">
+            <div class="col">
+                <h2>Dataset</h2>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Raw Text</th>
+                            <th>Label</th>
+                            <th>Cleaned Text</th>
+                            <th>Flagged</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable">
+                        <!-- Data rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="row mt-4">
+            <div class="col">
+                <button id="exportBtn" class="btn btn-success">Export CSV</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart; // Global variable to store the chart instance
+
+        // Function to update the chart
+        function updateChart(data) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            const labels = data.map((row) => row.ID);
+            const flagged = data.map((row) => row.Flagged ? 1 : 0);
+
+            if (chart) {
+                // If the chart already exists, update its data
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = flagged;
+                chart.update(); // Update the chart
+            } else {
+                // If the chart doesn't exist, create a new one
+                chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Flagged Rows',
+                            data: flagged,
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Function to load data from the server
+        async function loadData() {
+            try {
+                const response = await fetch('http://localhost:3001/data'); // Use port 3001
+                const data = await response.json();
+                const tableBody = document.getElementById('dataTable');
+                tableBody.innerHTML = '';
+
+                data.forEach((row) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.ID}</td>
+                        <td>${row.Raw_Text}</td>
+                        <td>${row.Label}</td>
+                        <td>${row.Cleaned_Text}</td>
+                        <td>${row.Flagged ? 'Yes' : 'No'}</td>
+                        <td><button onclick="flagRow('${row.ID}')" class="btn btn-warning">Flag</button></td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+
+                updateChart(data); // Update the chart with the latest data
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // Function to flag a row
+        async function flagRow(id) {
+            try {
+                const response = await fetch('http://localhost:3001/flag', { // Use port 3001
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const result = await response.json();
+                alert(result.message);
+                loadData(); // Reload data after flagging a row
+            } catch (error) {
+                console.error('Error flagging row:', error);
+            }
+        }
+
+        // Event listener for file upload
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('file', e.target.file.files[0]);
+
+            try {
+                const response = await fetch('http://localhost:3001/upload', { // Use port 3001
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                alert(result.message);
+                loadData(); // Reload data after uploading a file
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                alert('Error uploading file. Check the console for details.');
+            }
+        });
+
+        // Event listener for exporting CSV
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            window.location.href = 'http://localhost:3001/export'; // Use port 3001
+        });
+
+        // Load data on page load
+        loadData();
+    </script>
+</body>
+</html>
